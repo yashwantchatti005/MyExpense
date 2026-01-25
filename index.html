@@ -310,6 +310,12 @@ header{text-align:center;font-size:22px;font-weight:700;margin-bottom:12px}
   <canvas id="pieCanvas"></canvas>
 </div>
 
+<div class="card" id="insightsCard">
+  <strong>🧠 Spending Insights</strong>
+  <div id="insights" style="margin-top:10px;font-size:14px"></div>
+</div>
+
+
 <div class="card">
   <strong>🧾 Expense History</strong>
   <div id="list"></div>
@@ -421,6 +427,21 @@ header{text-align:center;font-size:22px;font-weight:700;margin-bottom:12px}
 
 <script>
 
+const categoryIcons = {
+  metro: "🚇",
+  auto: "🛺",
+  bus: "🚌",
+  car: "🚗",
+  train: "🚆",
+  flights: "✈️",
+  grocery: "🛒",
+  shopping: "🛍️",
+  food: "🍔",
+  medical: "🏥"
+};
+
+
+
   let deleteDate = null;
 let deleteIndex = null;
 
@@ -466,8 +487,10 @@ function renderQuick(){
   quickSetup.style.display = "none";
 
   quickExpenses.forEach(q=>{
-    let b = document.createElement("button");
-    b.innerText = `${q.name} ₹${q.amt}`;
+let b = document.createElement("button");
+b.innerText = `${categoryIcons[q.name.toLowerCase()] || "⚡"} ${q.name} ₹${q.amt}`;
+
+
 
     b.onclick = () => {
       expenses.push({
@@ -507,7 +530,11 @@ function render(){
     grp[d].forEach((e,i)=>{
       c.innerHTML+=`
         <div class="expense">
-          <span>${e.category}</span>
+<span>
+  ${categoryIcons[e.category.toLowerCase()] || "💸"} ${e.category}
+</span>
+
+
           <span>₹${e.amount}
       <button class="del" onclick="openDelete('${d}',${i})">✕</button>
 
@@ -741,6 +768,47 @@ function saveQuickEdit(){
   renderQuick();
 
   showToast("✏️ Quick expenses updated");
+}
+
+function generateInsights(){
+  const box = document.getElementById("insights");
+  if(expenses.length === 0){
+    box.innerHTML = "No expenses yet 👀";
+    return;
+  }
+
+  let total = 0;
+  let catTotal = {};
+  let today = new Date().toISOString().slice(0,10);
+
+  expenses.forEach(e=>{
+    total += e.amount;
+    catTotal[e.category] = (catTotal[e.category] || 0) + e.amount;
+  });
+
+  // most spent category
+  let maxCat = Object.keys(catTotal)
+    .reduce((a,b)=>catTotal[a]>catTotal[b]?a:b);
+
+  let todaySpent = expenses
+    .filter(e=>e.date === today)
+    .reduce((s,e)=>s+e.amount,0);
+
+  box.innerHTML = `
+   🔥 You spent most on <b>${categoryIcons[maxCat.toLowerCase()] || "💸"} ${maxCat}</b> <br><br>
+    📊 Total spent: <b>₹${total}</b><br>
+    📅 Today spent: <b>₹${todaySpent}</b>
+  `;
+
+  if(total > totalBalance){
+  box.innerHTML += "<br><br>⚠️ You are overspending!";
+}
+
+}
+generateInsights();
+
+function formatCategory(text){
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 }
 
 
