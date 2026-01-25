@@ -503,7 +503,7 @@ function render(){
   Object.keys(grp).reverse().forEach(d=>{
     let c=document.createElement("div");
     c.className="day-card";
-    c.innerHTML=`<div class="day-title">📅 ${d}</div>`;
+    c.innerHTML=`<div class="day-title">🗓️ ${d}</div>`;
     grp[d].forEach((e,i)=>{
       c.innerHTML+=`
         <div class="expense">
