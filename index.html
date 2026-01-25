@@ -549,7 +549,8 @@ function render(){
   totalSpentEl.innerText=spent;
   currentBalanceEl.innerText=totalBalance-spent;
   progressFill.style.width=(totalBalance?Math.min(spent/totalBalance*100,100):0)+"%";
-  drawPie();
+drawPie();
+generateInsights();   // 👈 ADD THIS
 }
 
 function drawPie(){
