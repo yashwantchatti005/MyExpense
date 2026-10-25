@@ -422,397 +422,281 @@ header{text-align:center;font-size:22px;font-weight:700;margin-bottom:12px}
   display:none;
   z-index:3000;
   box-shadow:0 15px 30px rgba(0,0,0,.2);
-">
-
-
+"></div>
 <script>
+"use strict";
 
+const $ = (id) => document.getElementById(id);
 const categoryIcons = {
-  metro: "🚇",
-  auto: "🛺",
-  bus: "🚌",
-  car: "🚗",
-  train: "🚆",
-  flights: "✈️",
-  grocery: "🛒",
-  shopping: "🛍️",
-  food: "🍔",
-  medical: "🏥"
+  metro:"🚇", auto:"🛺", bus:"🚌", car:"🚗", train:"🚆", flights:"✈️",
+  grocery:"🛒", shopping:"🛍️", food:"🍔", medical:"🏥"
 };
 
-
-
-  let deleteDate = null;
+let expenses = readJSON("expenses", []);
+let totalBalance = Number(localStorage.getItem("totalBalance")) || 0;
+let quickExpenses = readJSON("quickExpenses", []);
+let quickConfigured = localStorage.getItem("quickConfigured") === "true";
+let pieChart = null;
+let deleteDate = null;
 let deleteIndex = null;
 
-const totalBalanceEl=document.getElementById("totalBalance");
-const totalSpentEl=document.getElementById("totalSpent");
-const currentBalanceEl=document.getElementById("currentBalance");
-const progressFill=document.getElementById("progressFill");
-const list=document.getElementById("list");
-const quickBox=document.getElementById("quickBox");
-
-let expenses=JSON.parse(localStorage.getItem("expenses"))||[];
-let totalBalance=Number(localStorage.getItem("totalBalance"))||0;
-let quickExpenses=JSON.parse(localStorage.getItem("quickExpenses"))||[];
-let quickConfigured=localStorage.getItem("quickConfigured")==="true";
-let pieChart=null;
-
-date.value=new Date().toISOString().slice(0,10);
-
-function saveQuick(){
-  quickExpenses=[
-    {name:q1n.value,amt:+q1a.value},
-    {name:q2n.value,amt:+q2a.value},
-    {name:q3n.value,amt:+q3a.value}
-  ].filter(q=>q.name&&q.amt>0);
-
-  localStorage.setItem("quickExpenses",JSON.stringify(quickExpenses));
-  localStorage.setItem("quickConfigured","true");
-  quickConfigured=true;
-  quickSetup.style.display="none";
-  renderQuick();
-}
-
-function editQuick(){quickSetup.style.display="block"}
-
-function renderQuick(){
-  quickBox.innerHTML = "";
-
-  if(!quickConfigured){
-    quickSetup.style.display = "block";
-    return;
+function readJSON(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value ?? fallback;
+  } catch {
+    return fallback;
   }
-
-  quickSetup.style.display = "none";
-
-  quickExpenses.forEach(q=>{
-let b = document.createElement("button");
-b.innerText = `${categoryIcons[q.name.toLowerCase()] || "⚡"} ${q.name} ₹${q.amt}`;
-
-
-
-    b.onclick = () => {
-      expenses.push({
-        amount: q.amt,
-        category: q.name,
-        date: date.value
-      });
-
-      localStorage.setItem("expenses", JSON.stringify(expenses));
-      render();
-
-      showToast(`✅ ${q.name} ₹${q.amt} added`);
-    };
-
-    quickBox.appendChild(b);
-  });
 }
-
-function isSameWeek(d1,d2){
-  return Math.floor(d1/86400000/7)===Math.floor(d2/86400000/7);
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
+$("date").value = todayLocal();
 
-function render(){
-  list.innerHTML="";
-  let spent=0,grp={};
-
-  expenses.forEach(e=>{
-    spent+=e.amount;
-    grp[e.date]=grp[e.date]||[];
-    grp[e.date].push(e);
-  });
-
-  Object.keys(grp).reverse().forEach(d=>{
-    let c=document.createElement("div");
-    c.className="day-card";
-    c.innerHTML=`<div class="day-title">🗓️ ${d}</div>`;
-    grp[d].forEach((e,i)=>{
-      c.innerHTML+=`
-        <div class="expense">
-<span>
-  ${categoryIcons[e.category.toLowerCase()] || "💸"} ${e.category}
-</span>
-
-
-          <span>₹${e.amount}
-      <button class="del" onclick="openDelete('${d}',${i})">✕</button>
-
-
-          </span>
-        </div>`;
-    });
-    list.appendChild(c);
-  });
-
-  totalBalanceEl.innerText=totalBalance;
-  totalSpentEl.innerText=spent;
-  currentBalanceEl.innerText=totalBalance-spent;
-  progressFill.style.width=(totalBalance?Math.min(spent/totalBalance*100,100):0)+"%";
-drawPie();
-generateInsights();   // 👈 ADD THIS
-}
-
-function drawPie(){
-  let data={},now=new Date();
-  let filter=document.getElementById("pieFilter").value;
-
-  expenses.forEach(e=>{
-    let d=new Date(e.date),ok=false;
-    if(filter==="today") ok=d.toDateString()===now.toDateString();
-    if(filter==="week") ok=isSameWeek(d,now);
-    if(filter==="month") ok=d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-    if(filter==="year") ok=d.getFullYear()===now.getFullYear();
-    if(ok) data[e.category]=(data[e.category]||0)+e.amount;
-  });
-
-  if(pieChart) pieChart.destroy();
-  pieChart=new Chart(pieCanvas,{type:"pie",data:{labels:Object.keys(data),datasets:[{data:Object.values(data)}]}});
-}
-
-function deleteExpense(date,index){
-  let count=-1;
-  expenses=expenses.filter(e=>{
-    if(e.date===date){count++;return count!==index}
-    return true;
-  });
-  localStorage.setItem("expenses",JSON.stringify(expenses));
-  render();
-}
-
-function addExpense(){
-  let finalCategory =
-    category.value === "Other" && customCategory.value.trim()
-      ? customCategory.value.trim()
-      : category.value;
-
-  expenses.push({
-    amount: +amount.value,
-    category: finalCategory,
-    date: date.value
-  });
-
+function persistExpenses() {
   localStorage.setItem("expenses", JSON.stringify(expenses));
-
-  // reset custom field
-  customCategory.value = "";
-  customCategory.style.display = "none";
-  category.value = "Metro";
-
+}
+function money(value) {
+  return Number(value || 0).toLocaleString("en-IN", {maximumFractionDigits:2});
+}
+function showToast(message) {
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.style.background = "#2563eb";
+  toast.style.display = "block";
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => toast.style.display = "none", 2200);
+}
+function saveQuick() {
+  quickExpenses = [1,2,3].map(i => ({
+    name: $(`q${i}n`).value.trim(),
+    amt: Number($(`q${i}a`).value)
+  })).filter(q => q.name && Number.isFinite(q.amt) && q.amt > 0);
+  localStorage.setItem("quickExpenses", JSON.stringify(quickExpenses));
+  localStorage.setItem("quickConfigured", "true");
+  quickConfigured = true;
+  renderQuick();
+  showToast("Quick expenses saved");
+}
+function renderQuick() {
+  const box = $("quickBox");
+  box.replaceChildren();
+  $("quickSetup").style.display = quickConfigured ? "none" : "block";
+  if (!quickConfigured) return;
+  quickExpenses.forEach(q => {
+    const button = document.createElement("button");
+    button.textContent = `${categoryIcons[q.name.toLowerCase()] || "⚡"} ${q.name} ₹${money(q.amt)}`;
+    button.addEventListener("click", () => {
+      expenses.push({id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()), amount:q.amt, category:q.name, date:$("date").value || todayLocal()});
+      persistExpenses();
+      render();
+      showToast(`${q.name} ₹${money(q.amt)} added`);
+    });
+    box.appendChild(button);
+  });
+}
+function render() {
+  const list = $("list");
+  list.replaceChildren();
+  const groups = {};
+  let spent = 0;
+  expenses.forEach(e => {
+    e.amount = Number(e.amount) || 0;
+    spent += e.amount;
+    (groups[e.date] ||= []).push(e);
+  });
+  Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(day => {
+    const card = document.createElement("div");
+    card.className = "day-card";
+    const title = document.createElement("div");
+    title.className = "day-title";
+    title.textContent = `🗓️ ${day}`;
+    card.appendChild(title);
+    groups[day].forEach(e => {
+      const row = document.createElement("div");
+      row.className = "expense";
+      const name = document.createElement("span");
+      name.textContent = `${categoryIcons[String(e.category).toLowerCase()] || "💸"} ${e.category}`;
+      const right = document.createElement("span");
+      right.append(`₹${money(e.amount)} `);
+      const del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", `Delete ${e.category}`);
+      del.addEventListener("click", () => openDelete(day, expenses.filter(x => x.date === day).indexOf(e)));
+      right.appendChild(del);
+      row.append(name, right);
+      card.appendChild(row);
+    });
+    list.appendChild(card);
+  });
+  $("totalBalance").textContent = money(totalBalance);
+  $("totalSpent").textContent = money(spent);
+  $("currentBalance").textContent = money(totalBalance - spent);
+  $("progressFill").style.width = `${totalBalance > 0 ? Math.min(spent / totalBalance * 100, 100) : 0}%`;
+  drawPie();
+  generateInsights();
+}
+function isSameWeek(dateA, dateB) {
+  const startOfWeek = d => {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - ((x.getDay()+6)%7));
+    x.setHours(0,0,0,0);
+    return x;
+  };
+  return startOfWeek(dateA).getTime() === startOfWeek(dateB).getTime();
+}
+function parseLocalDate(value) {
+  const [y,m,d] = String(value).split("-").map(Number);
+  return new Date(y, (m || 1)-1, d || 1);
+}
+function drawPie() {
+  const canvas = $("pieCanvas");
+  if (!canvas || typeof Chart === "undefined") return;
+  const filter = $("pieFilter").value;
+  const now = new Date();
+  const data = {};
+  expenses.forEach(e => {
+    const d = parseLocalDate(e.date);
+    let include = false;
+    if (filter === "today") include = e.date === todayLocal();
+    if (filter === "week") include = isSameWeek(d, now);
+    if (filter === "month") include = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (filter === "year") include = d.getFullYear() === now.getFullYear();
+    if (include) data[e.category] = (data[e.category] || 0) + Number(e.amount || 0);
+  });
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(canvas, {
+    type:"pie",
+    data:{labels:Object.keys(data), datasets:[{data:Object.values(data)}]},
+    options:{responsive:true, plugins:{legend:{position:"bottom"}}}
+  });
+}
+function addExpense() {
+  const amount = Number($("amount").value);
+  const date = $("date").value;
+  const selected = $("category").value;
+  const custom = $("customCategory").value.trim();
+  const category = selected === "Other" ? custom : selected;
+  if (!Number.isFinite(amount) || amount <= 0) return showToast("Enter a valid amount");
+  if (!date) return showToast("Please choose a date");
+  if (!category) return showToast("Enter an expense category");
+  expenses.push({id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()), amount, category, date});
+  persistExpenses();
+  $("amount").value = "";
+  $("customCategory").value = "";
+  $("customCategory").style.display = "none";
+  $("category").value = "Metro";
   closeSheet();
   render();
-
-  setTimeout(()=>{
-    showToast(`✅ ${finalCategory} added`);
-  },300);
+  showToast(`${category} added`);
 }
-
-function exportExcel(){
-  let rows=["Date,Category,Amount"];
-  expenses.forEach(e=>rows.push(`${e.date},${e.category},${e.amount}`));
-  let a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
-  a.download="MyExpense.csv";a.click();
+function exportExcel() {
+  const quote = value => `"${String(value ?? "").replace(/"/g,'""')}"`;
+  const rows = [["Date","Category","Amount"], ...expenses.map(e => [e.date,e.category,e.amount])];
+  const csv = "\uFEFF" + rows.map(row => row.map(quote).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8;"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = "MyExpense.csv"; a.click();
+  URL.revokeObjectURL(url);
 }
-
-function openSheet(){sheet.style.display="flex"}
-function closeSheet(){sheet.style.display="none"}
-function openBalanceModal(){balanceModal.style.display="flex"}
-function closeBalance(){balanceModal.style.display="none"}
+function openSheet(){ $("sheet").style.display = "flex"; }
+function closeSheet(){ $("sheet").style.display = "none"; }
+function openBalanceModal(){ $("balanceModal").style.display = "flex"; }
+function closeBalance(){ $("balanceModal").style.display = "none"; $("balanceInput").value = ""; }
 function saveBalance(){
-  const amt = +balanceInput.value;
-  if(!amt) return;
-
-  totalBalance += amt;
-  localStorage.setItem("totalBalance", totalBalance);
-
-  closeBalance();
-  render();
-
-  setTimeout(()=>{
-    showToast(`💰 Balance ₹${amt} added`);
-  },200);
+  const amount = Number($("balanceInput").value);
+  if (!Number.isFinite(amount) || amount <= 0) return showToast("Enter a valid balance");
+  totalBalance += amount;
+  localStorage.setItem("totalBalance", String(totalBalance));
+  closeBalance(); render(); showToast(`Balance ₹${money(amount)} added`);
 }
-function showToast(msg){
-  const toast = document.getElementById("toast");
-  toast.innerText = msg;
-
-  toast.style.background = "#2563eb"; // 🔵 CHANGE COLOR HERE
-
-  toast.style.display = "block";
-
-  setTimeout(()=>{
-    toast.style.display = "none";
-  },2000);
+function openEditBalance(){ $("editBalanceInput").value = totalBalance; $("editBalanceModal").style.display = "flex"; }
+function closeEditBalance(){ $("editBalanceModal").style.display = "none"; }
+function saveEditedBalance(){
+  const amount = Number($("editBalanceInput").value);
+  if (!Number.isFinite(amount) || amount < 0) return showToast("Balance cannot be negative");
+  totalBalance = amount;
+  localStorage.setItem("totalBalance", String(totalBalance));
+  closeEditBalance(); render(); showToast("Balance updated");
 }
-
-
-function openClear(){clearModal.style.display="flex"}
-function closeClear(){clearModal.style.display="none"}
+function openClear(){ $("clearModal").style.display = "flex"; }
+function closeClear(){ $("clearModal").style.display = "none"; }
 function confirmClear(){
-  localStorage.clear();
-  expenses=[];totalBalance=0;
-  closeClear();render();
+  expenses = []; totalBalance = 0; quickExpenses = []; quickConfigured = false;
+  ["expenses","totalBalance","quickExpenses","quickConfigured"].forEach(k => localStorage.removeItem(k));
+  closeClear(); renderQuick(); render(); showToast("All data cleared");
+}
+function openDelete(date,index){ deleteDate = date; deleteIndex = index; $("deleteModal").style.display = "flex"; }
+function closeDelete(){ $("deleteModal").style.display = "none"; deleteDate = null; deleteIndex = null; }
+function confirmDeleteYes(){
+  if (deleteDate !== null && deleteIndex !== null) {
+    let index = -1;
+    expenses = expenses.filter(e => {
+      if (e.date !== deleteDate) return true;
+      index++;
+      return index !== deleteIndex;
+    });
+    persistExpenses(); render();
+  }
+  closeDelete(); showToast("Expense deleted");
+}
+function toggleCustomCategory(){
+  const custom = $("customCategory");
+  const show = $("category").value === "Other";
+  custom.style.display = show ? "block" : "none";
+  if (show) custom.focus(); else custom.value = "";
+}
+function openQuickEdit(){
+  const box = $("quickEditList"); box.replaceChildren();
+  const items = [...quickExpenses];
+  while (items.length < 3) items.push([{name:"Food",amt:""},{name:"Travel",amt:""},{name:"Others",amt:""}][items.length]);
+  items.slice(0,3).forEach((q,i) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;margin-bottom:8px;align-items:center";
+    const amount = document.createElement("input");
+    amount.type = "number"; amount.min = "0"; amount.id = `qe-amt-${i}`;
+    amount.value = q.amt ?? ""; amount.placeholder = "Amt";
+    const name = document.createElement("input");
+    name.type = "text"; name.id = `qe-name-${i}`;
+    name.value = q.name ?? ""; name.placeholder = "Name";
+    row.append(amount,name); box.appendChild(row);
+  });
+  $("editQuickModal").style.display = "flex";
+}
+function closeQuickEdit(){ $("editQuickModal").style.display = "none"; }
+function saveQuickEdit(){
+  const updated = [];
+  for(let i=0;i<3;i++){
+    const name = $(`qe-name-${i}`).value.trim();
+    const amt = Number($(`qe-amt-${i}`).value);
+    if(name && Number.isFinite(amt) && amt > 0) updated.push({name,amt});
+  }
+  quickExpenses = updated;
+  quickConfigured = true;
+  localStorage.setItem("quickExpenses",JSON.stringify(quickExpenses));
+  localStorage.setItem("quickConfigured","true");
+  closeQuickEdit(); renderQuick(); showToast("Quick expenses updated");
+}
+function generateInsights(){
+  const box = $("insights");
+  if (!expenses.length) { box.textContent = "No expenses yet 👀"; return; }
+  let total = 0; const catTotal = {};
+  expenses.forEach(e => { total += Number(e.amount)||0; catTotal[e.category] = (catTotal[e.category]||0)+(Number(e.amount)||0); });
+  const maxCat = Object.keys(catTotal).reduce((a,b) => catTotal[a] > catTotal[b] ? a : b);
+  const todaySpent = expenses.filter(e => e.date === todayLocal()).reduce((sum,e)=>sum+(Number(e.amount)||0),0);
+  box.replaceChildren();
+  const p = document.createElement("p");
+  p.textContent = `🔥 You spent most on ${categoryIcons[maxCat.toLowerCase()] || "💸"} ${maxCat}`;
+  const p2 = document.createElement("p"); p2.textContent = `📊 Total spent: ₹${money(total)}`;
+  const p3 = document.createElement("p"); p3.textContent = `📅 Today spent: ₹${money(todaySpent)}`;
+  box.append(p,p2,p3);
+  if(total > totalBalance){ const warning = document.createElement("p"); warning.textContent = "⚠️ You are overspending!"; box.appendChild(warning); }
 }
 
 renderQuick();
 render();
-
-
-function openDelete(date, index){
-  deleteDate = date;
-  deleteIndex = index;
-  deleteModal.style.display = "flex";
-}
-
-function closeDelete(){
-  deleteModal.style.display = "none";
-  deleteDate = null;
-  deleteIndex = null;
-}
-
-function confirmDeleteYes(){
-  deleteExpense(deleteDate, deleteIndex);
-  closeDelete();
-}
-
-function toggleCustomCategory(){
-  const cat = category.value;
-  const custom = document.getElementById("customCategory");
-
-  if(cat === "Other"){
-    custom.style.display = "block";
-    custom.focus();
-  }else{
-    custom.style.display = "none";
-    custom.value = "";
-  }
-}
-function openEditBalance(){
-  editBalanceInput.value = totalBalance; // show current balance
-  editBalanceModal.style.display = "flex";
-}
-
-function closeEditBalance(){
-  editBalanceModal.style.display = "none";
-}
-
-function saveEditedBalance(){
-  const newBalance = +editBalanceInput.value;
-
-  if(newBalance < 0){
-    showToast("❌ Balance cannot be negative");
-    return;
-  }
-
-  totalBalance = newBalance;
-  localStorage.setItem("totalBalance", totalBalance);
-
-  closeEditBalance();
-  render();
-
-  showToast("✏️ Balance updated successfully");
-}
-
-function openQuickEdit(){
-  const box = document.getElementById("quickEditList");
-  box.innerHTML = "";
-
-  // defaults only for UI
-  const defaults = [
-    { name: "Food", amt: "" },
-    { name: "Travel", amt: "" },
-    { name: "Others", amt: "" }
-  ];
-
-  // merge existing + defaults (UI only)
-  const list = [...quickExpenses];
-  while(list.length < 3){
-    list.push(defaults[list.length]);
-  }
-
-  list.slice(0,3).forEach((q, i) => {
-    box.innerHTML += `
-      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
-        <span style="font-weight:600">₹</span>
-        <input type="number" id="qe-amt-${i}" value="${q.amt ?? ""}" placeholder="Amt">
-        <input type="text" id="qe-name-${i}" value="${q.name ?? ""}" placeholder="Name">
-      </div>
-    `;
-  });
-
-  editQuickModal.style.display = "flex";
-}
-
-
-function closeQuickEdit(){
-  editQuickModal.style.display = "none";
-}
-
-function saveQuickEdit(){
-  let updated = [];
-
-  for(let i = 0; i < 3; i++){
-    const name = document.getElementById(`qe-name-${i}`).value.trim();
-    const amt = +document.getElementById(`qe-amt-${i}`).value;
-
-    // user choice: skip empty rows
-    if(name && amt > 0){
-      updated.push({ name, amt });
-    }
-  }
-
-  quickExpenses = updated;
-  localStorage.setItem("quickExpenses", JSON.stringify(quickExpenses));
-
-  closeQuickEdit();
-  renderQuick();
-
-  showToast("✏️ Quick expenses updated");
-}
-
-function generateInsights(){
-  const box = document.getElementById("insights");
-  if(expenses.length === 0){
-    box.innerHTML = "No expenses yet 👀";
-    return;
-  }
-
-  let total = 0;
-  let catTotal = {};
-  let today = new Date().toISOString().slice(0,10);
-
-  expenses.forEach(e=>{
-    total += e.amount;
-    catTotal[e.category] = (catTotal[e.category] || 0) + e.amount;
-  });
-
-  // most spent category
-  let maxCat = Object.keys(catTotal)
-    .reduce((a,b)=>catTotal[a]>catTotal[b]?a:b);
-
-  let todaySpent = expenses
-    .filter(e=>e.date === today)
-    .reduce((s,e)=>s+e.amount,0);
-
-  box.innerHTML = `
-   🔥 You spent most on <b>${categoryIcons[maxCat.toLowerCase()] || "💸"} ${maxCat}</b> <br><br>
-    📊 Total spent: <b>₹${total}</b><br>
-    📅 Today spent: <b>₹${todaySpent}</b>
-  `;
-
-  if(total > totalBalance){
-  box.innerHTML += "<br><br>⚠️ You are overspending!";
-}
-
-}
-generateInsights();
-
-function formatCategory(text){
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-
 </script>
 
 <script>
